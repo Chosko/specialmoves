@@ -15,4 +15,5 @@
 # geany
 *.geany
 *.exe
+*.txt
 geany_run_script.bat
