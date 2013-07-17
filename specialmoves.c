@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#define CHUNK_SIZE 1000000
+#define CHUNK_SIZE 100000
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
 
 //The entry point of the application
