@@ -8,10 +8,13 @@ int main(int argc, const char *argv[])
 {
 	//Var declaration
 	unsigned char input_buffer[CHUNK_SIZE]; //input buffer
+	unsigned char output_buffer[CHUNK_SIZE]; //output buffer
 	int input_buffer_count;	//input buffer count
 	int has_read;	//indicates if the loop has read something
 	int input_bytes_left;	//the bytes left to reach the end of file
 	int bytes_to_read;	//the bytes to read for each iteration
+	int current_state = 0; //the FSM state
+	unsigned char current_char; //the current char read
 	int i;	//counter
 
 	//open input file
@@ -51,11 +54,39 @@ int main(int argc, const char *argv[])
 		if(has_read)
 		{
 			input_buffer_count = bytes_to_read;
-			for(i=0; i<bytes_to_read; i++)
-			{
-				if(1);
-				else;
-			}
+			//for(i=0; i<input_buffer_count; i++)
+			//{
+			i=0;
+			loop:
+			
+				current_char = input_buffer[i];
+				
+				//reading from input
+				if(current_state == 2)
+				{
+					
+				}
+				
+				//reading left of declarations
+				else if(current_state == 0)
+				{
+					if(current_char == ':')
+						current_state = 1;
+					else if(current_char == '\n')
+						current_state = 2;
+				}
+				
+				//reading right of declarations
+				else
+				{
+					if(current_char == '\n')
+						current_state = 0;
+				}
+				
+				i++;
+				if(i < input_buffer_count)
+					goto loop;
+			//}
 			
 			//write to file
 			fwrite(input_buffer, input_buffer_count, 1, fout);
