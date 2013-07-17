@@ -1,66 +1,18 @@
 #include <stdio.h>
 
 #define CHUNK_SIZE 1000000
-#define INPUT_BUFFER_SIZE 1
-#define OUTPUT_BUFFER_SIZE 1
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
-
-//enums the current state of the FSM
-typedef 
-	enum _FSM_state
-	{
-		//Left side of a move declaration (before :)
-		DECLARATION_LEFT,
-		
-		//Right side of a move declaration (after :)
-		DECLARATION_RIGHT,
-		
-		//Input reading
-		USER_INPUT,
-	}
-FSM_state;
-
-typedef
-	struct _io_chunk
-	{
-		char chars[CHUNK_SIZE];
-	}
-io_chunk;
-
-//perform declaration_left operations, and return the new current state
-FSM_state declaration_left(unsigned char current_char)
-{
-	if(current_char == ':')
-		return DECLARATION_RIGHT;
-	if(current_char == '\n')
-		return USER_INPUT;
-	
-	return DECLARATION_LEFT;
-}
-
-//perform declaration_right operations, and return the new current state
-FSM_state declaration_right(unsigned char current_char)
-{
-	if(current_char == '\n')
-		return DECLARATION_LEFT;
-		
-	return DECLARATION_RIGHT;
-}
-
-//perform user_input
-FSM_state user_input(unsigned char current_char)
-{
-	return USER_INPUT;
-}
 
 //The entry point of the application
 int main(int argc, const char *argv[])
 {
 	//Var declaration
-	io_chunk input_buffer[INPUT_BUFFER_SIZE]; //input buffer
-	int read_chunks;	//number of bytes read
-	int input_bytes_left;
-	int bytes_to_read;
+	unsigned char input_buffer[CHUNK_SIZE]; //input buffer
+	int input_buffer_count;	//input buffer count
+	int has_read;	//indicates if the loop has read something
+	int input_bytes_left;	//the bytes left to reach the end of file
+	int bytes_to_read;	//the bytes to read for each iteration
+	int i;	//counter
 
 	//open input file
 	FILE *fin;
@@ -89,19 +41,26 @@ int main(int argc, const char *argv[])
 	//the I/O loop
 	while(!feof(fin))
 	{
+		//the number of bytes to read
 		bytes_to_read = MIN(input_bytes_left, CHUNK_SIZE);
 		
-		//reads from file
-		read_chunks = fread(input_buffer, bytes_to_read, INPUT_BUFFER_SIZE, fin);
+		//read from file
+		has_read = fread(input_buffer, bytes_to_read, 1, fin);
 		
-		fwrite(input_buffer, read_chunks * bytes_to_read, read_chunks, fout);
-		
-		//printf("bytes_read: %d\n", read_chunks * bytes_to_read);
+		//read succesful
+		if(has_read)
+		{
+			input_buffer_count = bytes_to_read;
+			for(i=0; i<bytes_to_read; i++)
+			{
+				if(1);
+				else;
+			}
+			
+			//write to file
+			fwrite(input_buffer, input_buffer_count, 1, fout);
+		}		
 	}
-	
-	//close files
-	fclose(fin);
-	fclose(fout);
 
 	return 0;
 }
