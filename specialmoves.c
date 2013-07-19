@@ -39,11 +39,17 @@ struct _tree_node
 //displays a tree
 void display_tree(tree t, int depth);
 
+//displays all searches in given list
+void display_searches(list l, unsigned char next_verse);
+
 //initializes a tree
 void create_tree(tree *t);
 
 //initializes a list
 void create_list(list *l, unsigned char c);
+
+//initializes a list for search
+void create_search(list *l);
 
 //initializes a move
 void create_move(move *m);
@@ -57,13 +63,14 @@ void destroy_move(move m);
 //destroys a tree
 void destroy_tree(tree t);
 
-//finds the given char in the next level of the tree, or returns NULL
+//finds the given char in the next level of the tree. returns NULL if not found
 tree find_next(tree t, unsigned char c);
 
 //finds or create the given char in the next level of the tree
 tree find_or_create_next(tree t, unsigned char c);
 
 // ------------------------- FUNCTIONS --------------------------
+//displays a tree
 void display_tree(tree t, int depth)
 {
 	if(t)
@@ -78,7 +85,10 @@ void display_tree(tree t, int depth)
 		}
 		
 		//prints the node char
-		printf("%c", t->c);
+		if(t->c)
+			printf("%c", t->c);
+		else
+			printf("root");
 		
 		//prints the special move
 		if(t->m)
@@ -93,6 +103,26 @@ void display_tree(tree t, int depth)
 			display_tree(l->t, depth + 1);
 			l = l->n;
 		}
+	}
+}
+
+//displays all searches in given list
+void display_searches(list l, unsigned char next_verse)
+{
+	if(!l)
+		printf("X\n");
+	else
+	{
+		printf("[");
+		if(l->t)
+		{
+			if(l->t->c)
+				printf("%c", l->t->c);
+			else
+				printf("root");
+		}
+		printf(next_verse ? "]->" : "]<-");
+		display_searches(next_verse ? l->n : l->p, next_verse);
 	}
 }
 
@@ -113,6 +143,15 @@ void create_list(list *l, unsigned char c)
 	(*l)->p = NULL;
 	create_tree(&((*l)->t));
 	(*l)->t->c = c;	
+}
+
+//initializes a list for search
+void create_search_list(list *l)
+{
+	*l = (list)malloc(sizeof(struct _list_node));
+	(*l)->n = NULL;
+	(*l)->p = NULL;
+	(*l)->t = NULL;
 }
 
 //initializes a move
@@ -156,14 +195,51 @@ void destroy_tree(tree t)
 	free(t);
 }
 
-//finds the given char in the next level of the tree, or returns NULL
+//finds the given char in the next level of the tree. returns NULL if not found
 tree find_next(tree t, unsigned char c)
 {
+	//if leaf, return NULL
+	if(!(t->l))
+		return NULL;
+	
+	//if node, search into all children (only one depth level)
+	list l = t->l;		//iterator
+	unsigned char peek;	//current reading char
+	
+	//loop. find!
 	while(1)
 	{
-		printf("not implemented \"find_next\" function\n");
+		peek = l->t->c;
+		
+		//looked char exceeded. return null
+		if(peek > c)
+		{
+			return NULL;
+		}
+		
+		
+		//looked char reached. return found node
+		else if(peek == c)
+		{
+			return l->t;
+		}
+		
+		//looked char not reached, try next
+		else
+		{
+			//if next doesn't exists, char not found. return null
+			if(!(l->n))
+			{
+				return NULL;
+			}
+			
+			//if next exists, iterate over next
+			else
+			{
+				l = l->n;
+			}
+		}
 	}
-	return NULL;
 }
 
 //finds or create the given char in the next level of the tree
@@ -242,12 +318,15 @@ tree find_or_create_next(tree t, unsigned char c)
 int main(int argc, const char *argv[])
 {
 	//Var declaration
-	int has_read;	//indicates if the loop has read something
-	int input_bytes_left;	//the bytes left to reach the end of file
-	int bytes_to_read;	//the bytes to read for each iteration
-	int current_state = 0; //the FSM state
+	int has_read;				//indicates if the loop has read something
+	int input_bytes_left;		//the bytes left to reach the end of file
+	int bytes_to_read;			//the bytes to read for each iteration
+	int current_state = 0; 		//the FSM state
 	unsigned char current_char; //the current char read
-	int i;	//counter
+	int i;						//counter
+	int j;  					//counter
+	int max_move_length = 0;	//the max length of all moves
+	int cur_move_length = 0;	//the length of the current move
 
 	//open input file
 	FILE *fin;
@@ -260,12 +339,12 @@ int main(int argc, const char *argv[])
 	//files not found
 	if(!fin)
 	{
-		printf("input file not found");
+		printf("input.txt file not found");
 		return 0;
 	}
 	if(!fout)
 	{
-		printf("output file not created");
+		printf("output.txt file not created");
 		return 0;
 	}
 	
@@ -279,8 +358,14 @@ int main(int argc, const char *argv[])
 	unsigned char output_buffer[MIN(CHUNK_SIZE, input_bytes_left)]; //output buffer
 	move current_move;
 	
-	tree root;
+	tree root; 					//the root of the parse tree
+	tree available_searches;	//the available search lists
+	tree current_searches;		//the current used search lists
+	list current_search;		//iterator for search lists
+	list tmp_search;			//a temporary ptr
 	create_tree(&root);
+	create_tree(&available_searches);
+	create_tree(&current_searches);
 	tree iterator = root;
 	
 	int left_decl_counter = 0;
@@ -308,7 +393,91 @@ int main(int argc, const char *argv[])
 				//reading from input
 				if(current_state == 2)
 				{
+					//no active current searches. Set the first
+					if(!current_searches->l)
+					{
+						current_searches->l = available_searches->l;
+						available_searches->l = available_searches->l->n;
+						if(available_searches->l)
+							available_searches->l->p = NULL;
+						current_searches->l->n = NULL;
+					}
 					
+					//already active current searches. request for another.
+					else
+					{	
+						current_searches->l->p = available_searches->l;
+						available_searches->l = available_searches->l->n;
+						if(available_searches->l)
+							available_searches->l->p = NULL;
+						current_searches->l->p->n = current_searches->l;
+						current_searches->l = current_searches->l->p;
+					}
+					
+					//initializes new search
+					current_search = current_searches->l;
+					current_search->t = root;
+					
+					//performs search operations
+					while(current_search)
+					{
+						//try to match into next level
+						current_search->t = find_next(current_search->t, current_char);
+						
+						//matched
+						if(current_search->t)
+						{
+							//move matched. must reset all searches
+							if(current_search->t->m)
+							{
+								//TODO: save current move
+								
+								//go until the end of the searches
+								while(current_search->n)
+								{
+									current_search->t = root;
+									current_search = current_search->n;
+								}
+								
+								//append current_search to available_searche
+								current_search->n = available_searches->l;
+								if(available_searches->l)
+									available_searches->l->p = current_search;
+								available_searches->l = current_searches->l;
+								current_searches->l = NULL;
+								current_search = NULL;
+							}
+							
+							//node reached. must go on with next search
+							else
+							{
+								current_search = current_search->n;
+							}
+						}
+							
+						//not matched. delete current_search and go on with next search
+						else
+						{
+							tmp_search = current_search->n;
+							
+							if(current_search->n)
+								current_search->n->p = current_search->p;
+							if(current_search->p)
+								current_search->p->n = current_search->n;
+							
+							//current_search was the first in the list. Must update the list with the new first.
+							else
+								current_searches->l = current_search->n;
+							
+							current_search->p = NULL;
+							current_search->n = available_searches->l;
+							if(current_search->n)
+								current_search->n->p = current_search;
+							available_searches->l = current_search;
+							current_search->t = root;
+							current_search = tmp_search;
+						}
+					}
 				}
 				
 				//reading left of declarations
@@ -318,9 +487,26 @@ int main(int argc, const char *argv[])
 					{
 						current_move->n[left_decl_counter] = 0;
 						current_state = 1;
+						cur_move_length = 0;
 					}
 					else if(current_char == '\n')
+					{
 						current_state = 2;
+												
+						//preparing for read the user input. initialize search resources
+						list new_search;
+						for (j = 0; j <= max_move_length; j++)
+						{
+							create_search_list(&new_search);
+							new_search->t = root;
+							if(j!=0)
+							{
+								new_search->n = available_searches->l;
+								available_searches->l->p = new_search;
+							}
+							available_searches->l = new_search;
+						}
+					}
 					else
 					{
 						//reading first char of new move
@@ -344,10 +530,13 @@ int main(int argc, const char *argv[])
 						left_decl_counter = 0;
 						iterator->m = current_move;
 						iterator = root;
+						if(cur_move_length > max_move_length)
+							max_move_length = cur_move_length;
 					}
 					else
 					{
 						iterator = find_or_create_next(iterator, current_char);
+						cur_move_length++;
 					}
 				}
 				
@@ -362,6 +551,8 @@ int main(int argc, const char *argv[])
 	
 	//display_tree(root, 0);
 	destroy_tree(root);
+	//destroy_list(available_searches);
+	//destroy_list(current_searches);
 
 	return 0;
 }
