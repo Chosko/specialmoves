@@ -19,7 +19,6 @@ typedef
 struct _list_node
 {
 	struct _list_node *n; //next
-	struct _list_node *p; //previous
 	struct _tree_node *t; //reference to tree
 }
 *list;
@@ -40,7 +39,7 @@ struct _tree_node
 void display_tree(tree t, int depth);
 
 //displays all searches in given list
-void display_searches(list l, unsigned char next_verse);
+void display_searches(list l);
 
 //initializes a tree
 void create_tree(tree *t);
@@ -81,7 +80,7 @@ void display_tree(tree t, int depth)
 		//indentation
 		for (i = 0; i < depth; i++)
 		{
-			printf("  ");
+			printf(" ");
 		}
 		
 		//prints the node char
@@ -107,7 +106,7 @@ void display_tree(tree t, int depth)
 }
 
 //displays all searches in given list
-void display_searches(list l, unsigned char next_verse)
+void display_searches(list l)
 {
 	if(!l)
 		printf("X\n");
@@ -121,8 +120,8 @@ void display_searches(list l, unsigned char next_verse)
 			else
 				printf("root");
 		}
-		printf(next_verse ? "]->" : "]<-");
-		display_searches(next_verse ? l->n : l->p, next_verse);
+		printf("]->");
+		display_searches(l->n);
 	}
 }
 
@@ -140,7 +139,6 @@ void create_list(list *l, unsigned char c)
 {
 	*l = (list)malloc(sizeof(struct _list_node));
 	(*l)->n = NULL;
-	(*l)->p = NULL;
 	create_tree(&((*l)->t));
 	(*l)->t->c = c;	
 }
@@ -150,7 +148,6 @@ void create_search_list(list *l)
 {
 	*l = (list)malloc(sizeof(struct _list_node));
 	(*l)->n = NULL;
-	(*l)->p = NULL;
 	(*l)->t = NULL;
 }
 
@@ -252,25 +249,24 @@ tree find_or_create_next(tree t, unsigned char c)
 	}
 	
 	list l = t->l; 		//iterator
+	list prvs = NULL;	//the previous list elem
 	list new;			//new node, if necessary
 	unsigned char peek; //current reading char
 	
 	//loop. find or create!
 	while(1)
-	{
+	{	
 		peek = l->t->c;
 		
 		//looked char exceeded. create new node before and return
 		if(peek > c)
 		{
 			create_list(&new, c);
-			new->p = l->p;
-			new->n = l;
 			
 			//if the peek is not the first node
-			if(l->p)
+			if(prvs)
 			{
-				l->p->n = new;
+				prvs->n = new;
 			}
 			
 			//if the peek is the first node, must update t->l
@@ -279,7 +275,7 @@ tree find_or_create_next(tree t, unsigned char c)
 				t->l = new;
 			}
 			
-			l->p = new;
+			new->n = l;
 			return new->t;
 		}
 		
@@ -297,7 +293,6 @@ tree find_or_create_next(tree t, unsigned char c)
 			if(!(l->n))
 			{
 				create_list(&new, c);
-				new->p = l;
 				l->n = new;
 				return new->t;
 			}
@@ -305,6 +300,7 @@ tree find_or_create_next(tree t, unsigned char c)
 			//if next exists, iterate over next
 			else
 			{
+				prvs = l;
 				l = l->n;
 			}
 		}
@@ -354,8 +350,8 @@ int main(int argc, const char *argv[])
 	
 	int bufsize = MIN(CHUNK_SIZE, input_bytes_left);
 	
-	unsigned char input_buffer[MIN(CHUNK_SIZE, input_bytes_left)]; //input buffer
-	unsigned char output_buffer[MIN(CHUNK_SIZE, input_bytes_left)]; //output buffer
+	unsigned char input_buffer[bufsize]; //input buffer
+	unsigned char output_buffer[bufsize]; //output buffer
 	move current_move;
 	
 	tree root; 					//the root of the parse tree
@@ -363,6 +359,7 @@ int main(int argc, const char *argv[])
 	tree current_searches;		//the current used search lists
 	list current_search;		//iterator for search lists
 	list tmp_search;			//a temporary ptr
+	list prvs;					//the previous list
 	create_tree(&root);
 	create_tree(&available_searches);
 	create_tree(&current_searches);
@@ -392,35 +389,21 @@ int main(int argc, const char *argv[])
 				
 				//reading from input
 				if(current_state == 2)
-				{
-					//no active current searches. Set the first
-					if(!current_searches->l)
-					{
-						current_searches->l = available_searches->l;
-						available_searches->l = available_searches->l->n;
-						if(available_searches->l)
-							available_searches->l->p = NULL;
-						current_searches->l->n = NULL;
-					}
-					
-					//already active current searches. request for another.
-					else
-					{	
-						current_searches->l->p = available_searches->l;
-						available_searches->l = available_searches->l->n;
-						if(available_searches->l)
-							available_searches->l->p = NULL;
-						current_searches->l->p->n = current_searches->l;
-						current_searches->l = current_searches->l->p;
-					}
+				{	
+					//request for an available search
+					tmp_search = current_searches->l;
+					current_searches->l = available_searches->l;
+					available_searches->l = available_searches->l->n;
+					current_searches->l->n = tmp_search;
 					
 					//initializes new search
 					current_search = current_searches->l;
 					current_search->t = root;
+					prvs = NULL;
 					
 					//performs search operations
 					while(current_search)
-					{
+					{	
 						//try to match into next level
 						current_search->t = find_next(current_search->t, current_char);
 						
@@ -435,14 +418,11 @@ int main(int argc, const char *argv[])
 								//go until the end of the searches
 								while(current_search->n)
 								{
-									current_search->t = root;
 									current_search = current_search->n;
 								}
 								
-								//append current_search to available_searche
+								//append current_search to available_searches
 								current_search->n = available_searches->l;
-								if(available_searches->l)
-									available_searches->l->p = current_search;
 								available_searches->l = current_searches->l;
 								current_searches->l = NULL;
 								current_search = NULL;
@@ -451,6 +431,7 @@ int main(int argc, const char *argv[])
 							//node reached. must go on with next search
 							else
 							{
+								prvs = current_search;
 								current_search = current_search->n;
 							}
 						}
@@ -460,21 +441,16 @@ int main(int argc, const char *argv[])
 						{
 							tmp_search = current_search->n;
 							
-							if(current_search->n)
-								current_search->n->p = current_search->p;
-							if(current_search->p)
-								current_search->p->n = current_search->n;
+							//current_search is not the first in the list
+							if(prvs)
+								prvs->n = current_search->n;
 							
-							//current_search was the first in the list. Must update the list with the new first.
+							//current_search is the first in the list. Must update the list with the new first.
 							else
 								current_searches->l = current_search->n;
 							
-							current_search->p = NULL;
 							current_search->n = available_searches->l;
-							if(current_search->n)
-								current_search->n->p = current_search;
 							available_searches->l = current_search;
-							current_search->t = root;
 							current_search = tmp_search;
 						}
 					}
@@ -498,11 +474,9 @@ int main(int argc, const char *argv[])
 						for (j = 0; j <= max_move_length; j++)
 						{
 							create_search_list(&new_search);
-							new_search->t = root;
 							if(j!=0)
 							{
 								new_search->n = available_searches->l;
-								available_searches->l->p = new_search;
 							}
 							available_searches->l = new_search;
 						}
@@ -550,7 +524,7 @@ int main(int argc, const char *argv[])
 	}
 	
 	//display_tree(root, 0);
-	destroy_tree(root);
+	//destroy_tree(root);
 	//destroy_list(available_searches);
 	//destroy_list(current_searches);
 
