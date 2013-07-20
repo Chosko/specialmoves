@@ -35,8 +35,8 @@ unsigned char *outcur;			//output buffer cursor
 unsigned char *outmax;			//output buffer max ptr value
 
 move lu[LULEN];					//lookup array
-int searches[LULEN];			//search indices
-int searchcount = 0;			//current search count
+int sindex[LULEN];				//search indices
+int scount = 0;					//current search count
 
 unsigned char cbuf[MOVLEN];		//circular buffer
 unsigned char *cleft;			//left cursor of cbuf
@@ -56,12 +56,77 @@ inline void wbuf(char c)
 	}
 }
 
-//circular increments cbuf cursor
-inline void cbufinc(unsigned char *cursor)
+//circular increments cbuf right cursor
+inline void rcbufinc()
 {
-	cursor++;
-	if(cursor > cmax)
-		cursor = cbuf;
+	cright++;
+	if(cright > cmax)
+		cright = cbuf;
+}
+
+//circular increments cbuf right cursor
+inline void lcbufinc()
+{
+	cleft++;
+	if(cleft > cmax)
+		cleft = cbuf;
+}
+
+//circular decrements cbuf cursor by given value
+inline void cbufrewind(int offset)
+{
+	cright -= offset;
+	if(cright < cbuf)
+	{
+		int diff = cbuf - cright;
+		cright = cmax - diff;
+	}
+}
+
+//displays the circular buffer
+inline void display_cbuf()
+{
+	unsigned char *ptr;
+	ptr = cbuf;
+	
+	printf("[");
+	while(ptr <= cmax)
+	{
+		if(ptr == cleft)
+			printf("->");
+		printf("%c,", *ptr);
+		if(ptr == cright)
+			printf("<-");
+		ptr++;
+	}
+	printf("]\n");
+}
+
+//matched move.
+inline void match(unsigned char *name, int seq_length)
+{
+	int length = strlen(name);
+	cbufrewind(seq_length - 1);
+	int i;
+	*cright = LF;
+	rcbufinc();
+	for (i = 0; i < length; i++)
+	{
+		*cright = name[i];
+		rcbufinc();
+		if(cleft==cright)
+		{
+			wbuf(*cleft);
+			lcbufinc();
+		}
+	}
+	*cright = LF;
+	rcbufinc();
+	if(cleft==cright)
+	{
+		wbuf(*cleft);
+		lcbufinc();
+	}
 }
 
 //flushes all left bytes into the out file
@@ -70,7 +135,7 @@ inline void flushbuf()
 	while(cleft != cright)
 	{
 		wbuf(*cleft);
-		cbufinc(cleft);
+		lcbufinc();
 	}
 	fwrite(outbuf, 1, outcur - outbuf, outfile);
 }
@@ -88,15 +153,20 @@ int main(int argc, char *argv[]){
 	//initializes buffers
 	bufsize = MIN(inleft, BUFSIZE);
 	
-	inbuf = (unsigned char *) malloc(bufsize);	//input buffer
+	//input buffer
+	inbuf = (unsigned char *) malloc(bufsize);
 	incur = inbuf;
 	inmax = inbuf + bufsize-1;
 	
-	outbuf = (unsigned char *) malloc(bufsize);	//output buffer
+	//output buffer
+	outbuf = (unsigned char *) malloc(bufsize);
 	outcur = outbuf;
 	outmax = outbuf + bufsize-1;
 	
-	cleft = cbuf;
+	//circular buffer
+	cmax = cbuf + MOVLEN - 1;
+	
+	cleft = cmax;
 	cright = cbuf;
 	
 	register int i;
@@ -105,7 +175,6 @@ int main(int argc, char *argv[]){
 	unsigned char tmp1 = 0;
 	unsigned char tmp2 = 0;
 	unsigned char curmove = 0;
-	
 	
 	while(inleft)
 	{	
@@ -122,12 +191,66 @@ int main(int argc, char *argv[]){
 			//reading user input
 			if(!status)
 			{
+				display_cbuf();
+				
+				tmp1 = peek;
+				if(lu[tmp1].status)
+				{
+					while(lu[tmp1].status && lu[tmp1].seq[0] != peek)
+						tmp1++;
+					
+					while(lu[tmp1].status && lu[tmp1].seq[0] == peek)
+					{
+						//printf("peek: %c. matched: %s:%s\n", peek, lu[tmp1].seq, lu[tmp1].name);
+						//printf("                  ^\n");
+						
+						lu[tmp1].count = 0;
+						sindex[scount] = tmp1;
+						scount++;
+						tmp1++;
+					}
+				}
+				
+				for(tmp2=scount; tmp2--;)
+				{
+					tmp1 = sindex[tmp2];
+					if(lu[tmp1].seq[lu[tmp1].count] == peek)
+					{
+						/*printf("peek: %c. matched: %s:%s\n", peek, lu[tmp1].seq, lu[tmp1].name);
+						printf("                  ");
+						int j;
+						for(j=lu[tmp1].count;j--;)
+						{
+							printf(" ");
+						}
+						printf("^\n");*/
+												
+						lu[tmp1].count++;
+						if(lu[tmp1].count == lu[tmp1].length)
+						{
+							//printf("MATCHED %s!\n\n", lu[tmp1].name);
+							match(lu[tmp1].name, lu[tmp1].length);
+							scount = 0;
+							tmp1 = 0;
+							tmp2 = 0;
+							break;
+						}
+					}
+					else
+					{
+						scount--;
+						sindex[tmp2] = sindex[scount];
+					}
+				}
+				
+				
+				
 				*cright = peek;
-				cbufinc(cright);
+				rcbufinc();
 				if(cleft==cright)
 				{
 					wbuf(*cleft);
-					cbufinc(cleft);
+					lcbufinc();
 				}
 			}
 			
